@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from joblib import load
 import json
+import os
 from pathlib import Path
 import click
 import logging
@@ -13,6 +14,21 @@ DATA = Path("data")
 PROCESSED = DATA / "processed"
 MODEL = Path("models/trained_model.pkl")
 METRICS = Path("metrics")
+
+
+# MLflow optionnel : identique a train_model.py, lu depuis .env / le shell.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
+MLFLOW_ENABLED = bool(
+    os.environ.get("MLFLOW_TRACKING_URI")
+    and os.environ.get("MLFLOW_TRACKING_USERNAME")
+    and os.environ.get("MLFLOW_TRACKING_PASSWORD")
+)
 
 
 @click.command()
@@ -30,6 +46,7 @@ def main():
 
     save_predictions(predictions)
     save_metrics(metrics)
+    log_metrics_mlflow(metrics)
 
 
 def calculate_metrics(y_test, predictions):
@@ -66,6 +83,21 @@ def save_metrics(metrics):
     (METRICS / "scores.json").write_text(
         json.dumps(metrics, indent=4)
     )
+
+
+def log_metrics_mlflow(metrics):
+    """Logue les metriques dans MLflow / DagsHub (best effort)."""
+    if not MLFLOW_ENABLED:
+        raise Exception("MyFlow not enabled : define MLFLOW_TRACKING_URI / MLFLOW_TRACKING_USERNAME / MLFLOW_TRACKING_PASSWORD (in .env) to log to DagsHub.")
+    try:
+        import mlflow
+
+        mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+        mlflow.set_experiment("exam-dvc")
+        with mlflow.start_run(run_name="random_forest_evaluation"):
+            mlflow.log_metrics(metrics)
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("Logging MLflow ignore (%s) : %s", type(exc).__name__, exc)
 
 
 if __name__ == "__main__":
