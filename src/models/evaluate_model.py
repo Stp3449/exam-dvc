@@ -14,13 +14,15 @@ DATA = Path("data")
 PROCESSED = DATA / "processed"
 MODEL = Path("models/trained_model.pkl")
 METRICS = Path("metrics")
+RUN_ID_FILE = Path("models/mlflow_run_id.txt")
 
 
 # MLflow optionnel : identique a train_model.py, lu depuis .env / le shell.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    load_dotenv(PROJECT_ROOT / ".env")          # chemin explicite : marche quel que soit le cwd
 except ImportError:
     pass
 
@@ -86,16 +88,32 @@ def save_metrics(metrics):
 
 
 def log_metrics_mlflow(metrics):
-    """Logue les metriques dans MLflow / DagsHub (best effort)."""
+    """Logue les metriques dans le MEME run MLflow que le modele (best effort).
+
+    train_model.py ecrit l'id du run d'entrainement dans RUN_ID_FILE ;
+    on reprend ce run pour que modele + parametres + metriques soient
+    regroupes. A defaut, on cree un run d'evaluation separe.
+    """
     if not MLFLOW_ENABLED:
-        raise Exception("MyFlow not enabled : define MLFLOW_TRACKING_URI / MLFLOW_TRACKING_USERNAME / MLFLOW_TRACKING_PASSWORD (in .env) to log to DagsHub.")
+        logging.warning(
+            "MLflow desactive : metriques non loguees vers DagsHub. Definir "
+            "MLFLOW_TRACKING_URI / MLFLOW_TRACKING_USERNAME / MLFLOW_TRACKING_PASSWORD (.env)."
+        )
+        raise Exception("MLflow desactive : metriques non loguees vers DagsHub.")
     try:
         import mlflow
 
         mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
         mlflow.set_experiment("exam-dvc")
-        with mlflow.start_run(run_name="random_forest_evaluation"):
+
+        run_id = RUN_ID_FILE.read_text().strip() if RUN_ID_FILE.exists() else ""
+        if run_id:
+            run_ctx = mlflow.start_run(run_id=run_id)          # reprend le run du modele
+        else:
+            run_ctx = mlflow.start_run(run_name="random_forest_evaluation")
+        with run_ctx:
             mlflow.log_metrics(metrics)
+            print(f"Metrics loggees dans le run MLflow {mlflow.active_run().info.run_id}")
     except Exception as exc:  # noqa: BLE001
         logging.warning("Logging MLflow ignore (%s) : %s", type(exc).__name__, exc)
 

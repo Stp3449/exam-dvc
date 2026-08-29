@@ -24,10 +24,11 @@ MODELS = Path("models")
 #   MLFLOW_TRACKING_URI       -> https://dagshub.com/<USER>/<REPO>.mlflow
 #   MLFLOW_TRACKING_USERNAME  -> nom d'utilisateur DagsHub
 #   MLFLOW_TRACKING_PASSWORD  -> token DagsHub (Settings > Tokens)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    load_dotenv(PROJECT_ROOT / ".env")          # chemin explicite : marche quel que soit le cwd
 except ImportError:
     logging.info("python-dotenv absent : lecture des variables d'environnement du shell.")
 
@@ -84,7 +85,7 @@ def main():
     # ni l'absence d'identifiants ni un échec réseau n'interrompt le pipeline.
     # --------------------------------------------------------
     if not MLFLOW_ENABLED:
-        return
+        raise Exception("MLflow not enabled : define MLFLOW_TRACKING_URI / MLFLOW_TRACKING_USERNAME / MLFLOW_TRACKING_PASSWORD (in .env) to log to DagsHub.")
 
     try:
         with mlflow.start_run(run_name="random_forest_training"):
@@ -95,6 +96,9 @@ def main():
             mlflow.sklearn.log_model(sk_model=model, name="trained_model")
 
             run_id = mlflow.active_run().info.run_id
+            # Partage l'id du run avec l'etape d'evaluation pour que les
+            # metriques soient loguees dans CE run (avec le modele).
+            (MODELS / "mlflow_run_id.txt").write_text(run_id)
             print(f"MLflow Run ID: {run_id}")
     except Exception as exc:  # noqa: BLE001
         logging.warning("Logging MLflow ignore (%s) : %s", type(exc).__name__, exc)

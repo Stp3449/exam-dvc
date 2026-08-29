@@ -1,4 +1,3 @@
-cat > .gitignore <<'EOF'
 # Environnement virtuel
 env/
 venv/
@@ -20,6 +19,7 @@ data/processed/*.csv
 data/processed/*.pkl
 models/*.pkl
 models/*.joblib
+models/mlflow_run_id.txt
 data/predictions.csv
 
 # NB : metrics/scores.json est déclaré `cache: false` dans dvc.yaml :
@@ -30,4 +30,4 @@ data/predictions.csv
 .env
 .env.*
 !.env.example
-EOF
+
