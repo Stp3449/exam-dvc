@@ -1,2 +1,33 @@
-/venv
-/clean_data.csv
+cat > .gitignore <<'EOF'
+# Environnement virtuel
+env/
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.log
+
+# Fichiers temporaires
+*.patch
+*.tgz
+*.tar.gz
+
+# Données et modèles suivis par DVC (poussés sur le remote DagsHub via `dvc push`)
+data/raw_data/raw.csv
+data/processed/*.csv
+data/processed/*.pkl
+models/*.pkl
+models/*.joblib
+data/predictions.csv
+
+# NB : metrics/scores.json est déclaré `cache: false` dans dvc.yaml :
+# il est versionné par Git (et non par DVC) pour permettre `dvc metrics diff`.
+
+# Secrets / identifiants (JAMAIS versionnés)
+.dvc/config.local
+.env
+.env.*
+!.env.example
+EOF
